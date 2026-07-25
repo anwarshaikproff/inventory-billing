@@ -1,7 +1,10 @@
 import os
-from flask import Flask
-from database.db import init_db, close_db
+from flask import Flask, redirect, url_for, flash
+from database.db import init_db, close_db, load_env
 from routes.billing import billing_bp
+
+# Ensure environment is explicitly loaded before starting application factory
+load_env()
 
 def create_app():
     """
@@ -20,6 +23,17 @@ def create_app():
     def inject_db_status():
         from database.db import get_db_status
         return dict(sidebar_db_status=get_db_status())
+
+    # Catch-all handler for legacy URLs (/products, /pos, /login, etc.)
+    @app.errorhandler(404)
+    def handle_not_found(error):
+        """Redirects any legacy or unmapped URLs directly to the modern billing desk."""
+        return redirect(url_for('billing.index'))
+
+    @app.errorhandler(500)
+    def handle_server_error(error):
+        """Prevents ugly application crash pages by safely routing back to main UI."""
+        return redirect(url_for('billing.index'))
 
     # Teardown connection close handlers
     @app.teardown_appcontext
