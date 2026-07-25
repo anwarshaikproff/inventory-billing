@@ -17,6 +17,9 @@ ENV/
 database_test.db
 *.log
 *.sqlite3-journal
+database/backups/*.db
+static/invoice/*.pdf
+static/uploads/*.pdf
 
 # IDE & OS Specific Files
 .vscode/
