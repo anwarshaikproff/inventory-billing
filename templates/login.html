@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Login - SKML Mobiles POS & Inventory{% endblock %}
+
+{% block content %}
+<div class="container d-flex align-items-center justify-content-center" style="min-height: 100vh;">
+    <div class="row w-100 justify-content-center">
+        <div class="col-md-5">
+            <!-- Glassmorphic Login Card -->
+            <div class="glass-card shadow-lg p-5">
+                <div class="text-center mb-4">
+                    <div class="mb-3">
+                        <i class="fas fa-cubes text-primary" style="font-size: 48px; background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i>
+                    </div>
+                    <h2 class="fw-bold tracking-tight mb-1">Welcome to SKML Mobiles</h2>
+                    <p class="text-secondary small">Inventory and Retail POS Management System</p>
+                </div>
+
+                <form action="{{ url_for('auth.login') }}" method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label fw-semibold">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-end-0 border-color"><i class="fas fa-user text-secondary"></i></span>
+                            <input type="text" class="form-control border-start-0" id="username" name="username" placeholder="Enter username" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="password" class="form-label fw-semibold">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-end-0 border-color"><i class="fas fa-lock text-secondary"></i></span>
+                            <input type="password" class="form-control border-start-0" id="password" name="password" placeholder="Enter password" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-premium w-100 mb-3 py-2 fs-6">
+                        <i class="fas fa-sign-in-alt me-2"></i>Sign In
+                    </button>
+
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

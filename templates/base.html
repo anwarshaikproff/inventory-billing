@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SKML Mobiles POS & Inventory{% endblock %}</title>
+    
+    <!-- SEO Best Practices -->
+    <meta name="description" content="A professional, modern Inventory Management and POS Billing System built with Flask and SQLite.">
+    <meta name="author" content="SKML Mobiles Team">
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- FontAwesome 6 Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+    <!-- 1. NAVIGATION SIDEBAR -->
+    {% if session.get('user_id') %}
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="{{ url_for('dashboard.index') }}" class="sidebar-brand">
+                <i class="fas fa-cubes me-2"></i><span>SKML Mobiles POS</span>
+            </a>
+        </div>
+        <ul class="sidebar-menu">
+            <!-- All Roles can see Dashboard -->
+            <li class="sidebar-item">
+                <a href="{{ url_for('dashboard.index') }}" class="sidebar-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+                    <i class="fas fa-chart-line"></i><span>Dashboard</span>
+                </a>
+            </li>
+
+            <!-- Cashier & Admin see POS Billing -->
+            {% if session.get('role') in ['Cashier', 'Admin'] %}
+            <li class="sidebar-item">
+                <a href="{{ url_for('pos.index') }}" class="sidebar-link {% if request.endpoint == 'pos.index' %}active{% endif %}">
+                    <i class="fas fa-cash-register"></i><span>POS Billing</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- Employee & Admin see Billing History -->
+            {% if session.get('role') in ['Employee', 'Admin'] %}
+            <li class="sidebar-item">
+                <a href="{{ url_for('pos.history') }}" class="sidebar-link {% if request.endpoint == 'pos.history' %}active{% endif %}">
+                    <i class="fas fa-history"></i><span>Billing History</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- Employee & Admin see Product Catalog -->
+            {% if session.get('role') in ['Employee', 'Admin'] %}
+            <li class="sidebar-item">
+                <a href="{{ url_for('products.index') }}" class="sidebar-link {% if request.endpoint == 'products.index' %}active{% endif %}">
+                    <i class="fas fa-boxes-stacked"></i><span>Products</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- Employee & Admin see Inventory Audit Ledger -->
+            {% if session.get('role') in ['Employee', 'Admin'] %}
+            <li class="sidebar-item">
+                <a href="{{ url_for('inventory.index') }}" class="sidebar-link {% if request.endpoint == 'inventory.index' %}active{% endif %}">
+                    <i class="fas fa-warehouse"></i><span>Inventory Control</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- Employee & Admin see Offers/Discounts -->
+            {% if session.get('role') in ['Employee', 'Admin'] %}
+            <li class="sidebar-item">
+                <a href="{{ url_for('offers.index') }}" class="sidebar-link {% if request.endpoint == 'offers.index' %}active{% endif %}">
+                    <i class="fas fa-tags"></i><span>Offers & Coupons</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- Cashier, Employee & Admin see Customers list -->
+            {% if session.get('role') in ['Cashier', 'Employee', 'Admin'] %}
+            <li class="sidebar-item">
+                <a href="{{ url_for('customers.index') }}" class="sidebar-link {% if request.endpoint == 'customers.index' %}active{% endif %}">
+                    <i class="fas fa-users"></i><span>Customers</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- Employee & Admin see Suppliers list -->
+            {% if session.get('role') in ['Employee', 'Admin'] %}
+            <li class="sidebar-item">
+                <a href="{{ url_for('suppliers.index') }}" class="sidebar-link {% if request.endpoint == 'suppliers.index' %}active{% endif %}">
+                    <i class="fas fa-truck-field"></i><span>Suppliers</span>
+                </a>
+            </li>
+            {% endif %}
+
+
+
+            <!-- Admin only sees Settings -->
+            {% if session.get('role') == 'Admin' %}
+            <li class="sidebar-item">
+                <a href="{{ url_for('settings.index') }}" class="sidebar-link {% if request.endpoint == 'settings.index' %}active{% endif %}">
+                    <i class="fas fa-sliders"></i><span>Settings & Backups</span>
+                </a>
+            </li>
+            <li class="sidebar-item">
+                <a href="{{ url_for('db_management.index') }}" class="sidebar-link {% if request.endpoint == 'db_management.index' %}active{% endif %}">
+                    <i class="fas fa-database"></i><span>Database Panel</span>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+
+        <!-- Database Connection Status Widget -->
+        <div class="p-3 mx-3 my-2 rounded text-light" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); font-size: 0.75rem;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span>Database Status:</span>
+                {% if sidebar_db_status and sidebar_db_status.status == 'Connected' %}
+                    <span class="text-success fw-bold"><i class="fas fa-circle me-1" style="font-size: 0.6rem;"></i>Connected</span>
+                {% else %}
+                    <span class="text-danger fw-bold"><i class="fas fa-circle me-1" style="font-size: 0.6rem;"></i>Disconnected</span>
+                {% endif %}
+            </div>
+            <div class="d-flex justify-content-between">
+                <span class="text-secondary text-uppercase fs-9">Type:</span>
+                <span class="fw-semibold text-truncate" style="max-width: 100px;">{{ sidebar_db_status.db_type if sidebar_db_status else 'Unknown' }}</span>
+            </div>
+        </div>
+        
+        <div class="sidebar-footer">
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="me-2">
+                    <small class="d-block text-light text-uppercase fs-8">{{ session.get('role') }}</small>
+                    <span class="fw-bold fs-7">{{ session.get('username') }}</span>
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-danger border-0">
+                    <i class="fas fa-power-off"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 2. MAIN BODY WRAPPER -->
+    <div class="main-content" style="{% if not session.get('user_id') %}margin-left: 0; padding: 0;{% endif %}">
+        
+        {% if session.get('user_id') %}
+        <!-- Top Title Bar -->
+        <div class="top-bar">
+            <div class="page-title">
+                <h1>{% block page_title %}Store Control Panel{% endblock %}</h1>
+                <p>{% block page_subtitle %}Manage stock entries, sales invoices, and metrics{% endblock %}</p>
+            </div>
+            <div class="top-bar-actions">
+                <!-- Theme Toggle Button -->
+                <button class="btn btn-theme" id="theme-toggle" title="Toggle Theme mode (Dark/Light)">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Flash alerts placeholder -->
+        <div class="container-fluid p-0">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- Notification container for POS toasting -->
+        <div id="notification-toast-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1050;"></div>
+
+        <!-- Main content block -->
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Bootstrap 5 Bundle JS (Popper included) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom Main JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

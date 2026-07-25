@@ -1,0 +1,724 @@
+{% extends "base.html" %}
+
+{% block title %}Database Management - SKML Mobiles{% endblock %}
+
+{% block page_title %}Database Management Control Panel{% endblock %}
+{% block page_subtitle %}Review records, toggle user states, edit properties, and inspect sync statuses across logical tables{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    
+    <!-- Connection Status Bar -->
+    <div class="glass-card mb-4 p-4">
+        <h5 class="fw-bold mb-3"><i class="fas fa-network-wired me-2 text-indigo"></i>Database Connection Status</h5>
+        <div class="row g-3">
+            <div class="col-md-3 col-sm-6">
+                <div class="p-3 bg-light rounded border-color text-center h-100">
+                    <span class="d-block text-secondary small text-uppercase mb-1">Status</span>
+                    {% if db_status.status == 'Connected' %}
+                        <span class="badge bg-success fs-7"><i class="fas fa-check-circle me-1"></i>Connected</span>
+                    {% else %}
+                        <span class="badge bg-danger fs-7"><i class="fas fa-times-circle me-1"></i>Disconnected</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="p-3 bg-light rounded border-color text-center h-100">
+                    <span class="d-block text-secondary small text-uppercase mb-1">Database Type</span>
+                    <span class="fw-bold text-dark fs-6">{{ db_status.db_type }}</span>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="p-3 bg-light rounded border-color text-center h-100">
+                    <span class="d-block text-secondary small text-uppercase mb-1">Last Sync/Heartbeat</span>
+                    <span class="text-secondary small font-monospace d-block mt-1">{{ db_status.last_sync_time }}</span>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="p-3 bg-light rounded border-color text-center h-100 d-flex align-items-center justify-content-center">
+                    <a href="{{ url_for('db_management.index', tab=tab) }}" class="btn btn-sm btn-outline-primary py-2 px-3">
+                        <i class="fas fa-sync me-2"></i>Refresh Connection
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Logical Schema Selector Tabs -->
+    <div class="glass-card p-4">
+        <ul class="nav nav-pills mb-4 d-flex gap-2" id="db-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if tab == 'admins' %}active btn-premium-pill{% else %}btn-outline-pill{% endif %}" href="{{ url_for('db_management.index', tab='admins', q=q) }}">
+                    <i class="fas fa-users-cog me-2"></i>Admin Database
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if tab == 'products' %}active btn-premium-pill{% else %}btn-outline-pill{% endif %}" href="{{ url_for('db_management.index', tab='products', q=q) }}">
+                    <i class="fas fa-boxes me-2"></i>Product Database
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if tab == 'offers' %}active btn-premium-pill{% else %}btn-outline-pill{% endif %}" href="{{ url_for('db_management.index', tab='offers', q=q) }}">
+                    <i class="fas fa-tags me-2"></i>Offers Database
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if tab == 'customers' %}active btn-premium-pill{% else %}btn-outline-pill{% endif %}" href="{{ url_for('db_management.index', tab='customers', q=q) }}">
+                    <i class="fas fa-users me-2"></i>Customer Database
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if tab == 'billing' %}active btn-premium-pill{% else %}btn-outline-pill{% endif %}" href="{{ url_for('db_management.index', tab='billing', q=q) }}">
+                    <i class="fas fa-file-invoice-dollar"></i>Billing Database
+                </a>
+            </li>
+        </ul>
+
+        <!-- Search Bar -->
+        <div class="mb-4">
+            <form method="GET" action="{{ url_for('db_management.index') }}" class="row g-2 align-items-center">
+                <input type="hidden" name="tab" value="{{ tab }}">
+                
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent border-end-0 border-color"><i class="fas fa-search text-secondary"></i></span>
+                        <input type="text" class="form-control border-start-0" name="q" value="{{ q }}" placeholder="Search current collection...">
+                    </div>
+                </div>
+
+                {% if tab == 'products' %}
+                <div class="col-md-2">
+                    <select class="form-select" name="category">
+                        <option value="">All Categories</option>
+                        {% for c in categories %}
+                            <option value="{{ c }}" {% if category_filter == c %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="stock_status">
+                        <option value="">All Stocks</option>
+                        <option value="In Stock" {% if stock_filter == 'In Stock' %}selected{% endif %}>In Stock</option>
+                        <option value="Low Stock" {% if stock_filter == 'Low Stock' %}selected{% endif %}>Low Stock</option>
+                        <option value="Out of Stock" {% if stock_filter == 'Out of Stock' %}selected{% endif %}>Out of Stock</option>
+                    </select>
+                </div>
+                {% endif %}
+
+                {% if tab == 'billing' %}
+                <div class="col-md-2">
+                    <select class="form-select" name="payment_mode">
+                        <option value="">All Payments</option>
+                        <option value="Cash" {% if payment_filter == 'Cash' %}selected{% endif %}>Cash</option>
+                        <option value="UPI" {% if payment_filter == 'UPI' %}selected{% endif %}>UPI</option>
+                        <option value="Credit Card" {% if payment_filter == 'Credit Card' %}selected{% endif %}>Credit Card</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <input type="date" class="form-control" name="date" value="{{ date_filter }}">
+                </div>
+                {% endif %}
+
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                    {% if q or category_filter or stock_filter or payment_filter or date_filter %}
+                        <a href="{{ url_for('db_management.index', tab=tab) }}" class="btn btn-outline-secondary"><i class="fas fa-undo"></i></a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+
+        <!-- TABS PANES -->
+        
+        <!-- Tab 1: ADMINS -->
+        {% if tab == 'admins' %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-secondary small">Showing {{ admins|length }} of {{ total_admins_count }} administrators</span>
+            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                <i class="fas fa-plus me-1"></i>Add Administrator
+            </button>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Full Name</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Last Login</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in admins %}
+                    <tr>
+                        <td><span class="font-monospace text-secondary small">#{{ a.id }}</span></td>
+                        <td><strong>{{ a.full_name or 'N/A' }}</strong></td>
+                        <td><span class="badge bg-secondary">{{ a.username }}</span></td>
+                        <td>{{ a.email or 'N/A' }}</td>
+                        <td>{{ a.phone or 'N/A' }}</td>
+                        <td><span class="badge {% if a.role == 'Admin' %}bg-primary{% elif a.role == 'Employee' %}bg-info{% else %}bg-secondary{% endif %}">{{ a.role }}</span></td>
+                        <td>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input toggle-status-btn" type="checkbox" role="switch" data-user-id="{{ a.id }}" {% if a.status == 'active' %}checked{% endif %}>
+                                <span class="small text-secondary user-status-lbl-{{ a.id }}">{% if a.status == 'active' %}Active{% else %}Inactive{% endif %}</span>
+                            </div>
+                        </td>
+                        <td class="small text-secondary">{{ a.last_login or 'Never' }}</td>
+                        <td class="text-center">
+                            <div class="btn-group">
+                                <button class="btn btn-xs btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editUserModal{{ a.id }}" title="Edit User">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-xs btn-outline-warning" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ a.id }}" title="Reset Password">
+                                    <i class="fas fa-key"></i>
+                                </button>
+                                <form action="{{ url_for('db_management.delete_user', user_id=a.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this administrator account permanently?');">
+                                    <button class="btn btn-xs btn-outline-danger" type="submit" title="Delete Administrator">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">No admin account records found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- PAGINATION FOR ADMINS -->
+        {% if admins_total_pages > 1 %}
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% for p in range(1, admins_total_pages + 1) %}
+                <li class="page-item {% if admins_page == p %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('db_management.index', tab='admins', q=q, admins_page=p) }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% endif %}
+
+        <!-- Tab 2: PRODUCTS -->
+        {% if tab == 'products' %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-secondary small">Showing {{ products|length }} of {{ total_products_count }} products</span>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>SKU ID</th>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Brand</th>
+                        <th>Purchase Price</th>
+                        <th>Selling Price</th>
+                        <th>MRP</th>
+                        <th>Quantity</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in products %}
+                    <tr>
+                        <td><span class="font-monospace badge bg-light text-dark">{{ p.product_id }}</span></td>
+                        <td><strong>{{ p.name }}</strong></td>
+                        <td>{{ p.category or 'N/A' }}</td>
+                        <td>{{ p.brand or 'N/A' }}</td>
+                        <td>₹{{ "%.2f"|format(p.purchase_price) }}</td>
+                        <td class="text-primary fw-semibold">₹{{ "%.2f"|format(p.selling_price) }}</td>
+                        <td>₹{{ "%.2f"|format(p.mrp) }}</td>
+                        <td>{{ p.quantity }} {{ p.unit }}</td>
+                        <td>
+                            <span class="badge {% if p.stock_status == 'In Stock' %}bg-success{% elif p.stock_status == 'Low Stock' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                {{ p.stock_status }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group">
+                                <button class="btn btn-xs btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editProductModal{{ p.id }}" title="Edit Product">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <form action="{{ url_for('db_management.delete_product', prod_id=p.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this product permanently from the database?');">
+                                    <button class="btn btn-xs btn-outline-danger" type="submit" title="Delete Product">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted py-4">No product records found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- PAGINATION FOR PRODUCTS -->
+        {% if products_total_pages > 1 %}
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% for p in range(1, products_total_pages + 1) %}
+                <li class="page-item {% if products_page == p %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('db_management.index', tab='products', q=q, category=category_filter, stock_status=stock_filter, products_page=p) }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% endif %}
+
+        <!-- Tab 3: OFFERS -->
+        {% if tab == 'offers' %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-secondary small">Showing {{ offers|length }} of {{ total_offers_count }} offer rules</span>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Offer Rule Name</th>
+                        <th>Type</th>
+                        <th>Value</th>
+                        <th>Min Purchase</th>
+                        <th>Coupon Code</th>
+                        <th>Validity Range</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for o in offers %}
+                    <tr>
+                        <td><span class="font-monospace text-secondary small">#{{ o.id }}</span></td>
+                        <td><strong>{{ o.name }}</strong></td>
+                        <td><span class="badge bg-secondary">{{ o.type }}</span></td>
+                        <td>
+                            {% if o.type == 'Flat' %}
+                            ₹{{ "%.2f"|format(o.value) }}
+                            {% else %}
+                            {{ o.value }}%
+                            {% endif %}
+                        </td>
+                        <td>₹{{ "%.2f"|format(o.min_purchase) }}</td>
+                        <td><code>{{ o.code or 'Automatic' }}</code></td>
+                        <td>
+                            <small class="text-secondary">
+                                {% if o.start_date or o.end_date %}
+                                {{ o.start_date or 'Start' }} to {{ o.end_date or 'End' }}
+                                {% else %}
+                                Infinite Validity
+                                {% endif %}
+                            </small>
+                        </td>
+                        <td>
+                            {% if o.active == 1 %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-danger">Disabled</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <form action="{{ url_for('db_management.delete_offer', offer_id=o.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete this offer rule from the database?');">
+                                <button class="btn btn-xs btn-outline-danger" type="submit" title="Delete Offer">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">No offer records found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- PAGINATION FOR OFFERS -->
+        {% if offers_total_pages > 1 %}
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% for p in range(1, offers_total_pages + 1) %}
+                <li class="page-item {% if offers_page == p %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('db_management.index', tab='offers', q=q, offers_page=p) }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% endif %}
+
+        <!-- Tab 4: CUSTOMERS -->
+        {% if tab == 'customers' %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-secondary small">Showing {{ customers|length }} of {{ total_customers_count }} customer records</span>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Customer Name</th>
+                        <th>Phone Number</th>
+                        <th>Email</th>
+                        <th>Address</th>
+                        <th>Reward Points</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in customers %}
+                    <tr>
+                        <td><span class="font-monospace text-secondary small">#{{ c.id }}</span></td>
+                        <td><strong>{{ c.name }}</strong></td>
+                        <td><code>{{ c.phone }}</code></td>
+                        <td>{{ c.email or 'N/A' }}</td>
+                        <td><small class="text-secondary">{{ c.address or 'N/A' }}</small></td>
+                        <td><span class="badge bg-success fs-7">{{ c.reward_points }} pts</span></td>
+                        <td class="text-center">
+                            <form action="{{ url_for('db_management.delete_customer', customer_id=c.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete this customer from the database?');">
+                                <button class="btn btn-xs btn-outline-danger" type="submit" title="Delete Customer">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">No customer records found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- PAGINATION FOR CUSTOMERS -->
+        {% if customers_total_pages > 1 %}
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% for p in range(1, customers_total_pages + 1) %}
+                <li class="page-item {% if customers_page == p %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('db_management.index', tab='customers', q=q, customers_page=p) }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% endif %}
+
+        <!-- Tab 5: BILLING -->
+        {% if tab == 'billing' %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-secondary small">Showing {{ bills|length }} of {{ total_bills_count }} sales invoices</span>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Invoice No</th>
+                        <th>Customer</th>
+                        <th>Cashier</th>
+                        <th>Subtotal</th>
+                        <th>Discount</th>
+                        <th>GST</th>
+                        <th>Grand Total</th>
+                        <th>Payment Mode</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in bills %}
+                    <tr>
+                        <td><span class="font-monospace text-secondary small">#{{ b.id }}</span></td>
+                        <td><span class="badge bg-secondary font-monospace">{{ b.invoice_number }}</span></td>
+                        <td>{{ b.customer_name }}</td>
+                        <td><span class="text-secondary small">{{ b.cashier_username }}</span></td>
+                        <td class="fw-semibold">₹{{ "%.2f"|format(b.subtotal) }}</td>
+                        <td class="text-danger">-₹{{ "%.2f"|format(b.discount) }}</td>
+                        <td class="text-success">+₹{{ "%.2f"|format(b.gst) }}</td>
+                        <td class="fw-bold text-primary">₹{{ "%.2f"|format(b.grand_total) }}</td>
+                        <td>
+                            <span class="badge {% if b.payment_mode == 'Cash' %}bg-success{% elif b.payment_mode == 'UPI' %}bg-info{% else %}bg-primary{% endif %}">
+                                {{ b.payment_mode }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge {% if b.status == 'Cancelled' %}bg-danger{% else %}bg-success{% endif %}">
+                                {{ b.status }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group">
+                                <a href="{{ url_for('pos.invoice_view', invoice_number=b.invoice_number) }}" target="_blank" class="btn btn-xs btn-outline-primary" title="Print Invoice">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                                <a href="{{ url_for('pos.invoice_download', invoice_number=b.invoice_number) }}" class="btn btn-xs btn-outline-success" title="Download PDF">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                <form action="{{ url_for('db_management.delete_bill', bill_id=b.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this billing invoice permanently? STOCK WILL BE RESTORED IF THE INVOICE WAS ACTIVE.');">
+                                    <button class="btn btn-xs btn-outline-danger" type="submit" title="Delete Invoice Record">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="11" class="text-center text-muted py-4">No billing records found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- PAGINATION FOR BILLS -->
+        {% if billing_total_pages > 1 %}
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% for p in range(1, billing_total_pages + 1) %}
+                <li class="page-item {% if billing_page == p %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('db_management.index', tab='billing', q=q, payment_mode=payment_filter, date=date_filter, billing_page=p) }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% endif %}
+
+    </div>
+</div>
+
+<!-- ADD USER MODAL -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card">
+            <form action="{{ url_for('db_management.add_user') }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-user-plus me-2 text-indigo"></i>Add Administrator</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-start">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Full Name</label>
+                        <input type="text" class="form-control" name="full_name" placeholder="E.g. John Doe">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Username *</label>
+                        <input type="text" class="form-control" name="username" required placeholder="Unique username">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Email Address</label>
+                        <input type="email" class="form-control" name="email" placeholder="email@store.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Phone Number</label>
+                        <input type="text" class="form-control" name="phone" placeholder="+91 XXXXXXXXXX">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">System Access Role *</label>
+                        <select class="form-select" name="role">
+                            <option value="Admin">Admin</option>
+                            <option value="Employee">Employee</option>
+                            <option value="Cashier">Cashier</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Account Password *</label>
+                        <input type="password" class="form-control" name="password" required placeholder="Choose a password">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium"><i class="fas fa-save me-1"></i>Create Account</button>
+                </div>
+            </form>
+</div>
+    </div>
+</div>
+
+<!-- ROOT-LEVEL MODALS TO PREVENT Z-INDEX / BACKDROP CLIPPING BUGS -->
+
+<!-- 1. ADMIN USER MODALS -->
+{% for a in admins %}
+<!-- EDIT USER MODAL -->
+<div class="modal fade" id="editUserModal{{ a.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card">
+            <form action="{{ url_for('db_management.edit_user', user_id=a.id) }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Edit User Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-start">
+                    <div class="mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-control" name="full_name" value="{{ a.full_name or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-control" name="email" value="{{ a.email or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <input type="text" class="form-control" name="phone" value="{{ a.phone or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">System Role</label>
+                        <select class="form-select" name="role">
+                            <option value="Admin" {% if a.role == 'Admin' %}selected{% endif %}>Admin</option>
+                            <option value="Employee" {% if a.role == 'Employee' %}selected{% endif %}>Employee</option>
+                            <option value="Cashier" {% if a.role == 'Cashier' %}selected{% endif %}>Cashier</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Account Status</label>
+                        <select class="form-select" name="status">
+                            <option value="active" {% if a.status == 'active' %}selected{% endif %}>Active</option>
+                            <option value="inactive" {% if a.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- RESET PASSWORD MODAL -->
+<div class="modal fade" id="resetPasswordModal{{ a.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card">
+            <form action="{{ url_for('db_management.reset_user_password', user_id=a.id) }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Reset Password</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-start">
+                    <div class="mb-3">
+                        <label class="form-label">Enter New Password</label>
+                        <input type="password" class="form-control" name="password" required placeholder="New password">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Reset Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- 2. PRODUCT EDIT MODALS -->
+{% for p in products %}
+<div class="modal fade" id="editProductModal{{ p.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card">
+            <form action="{{ url_for('db_management.edit_product', prod_id=p.id) }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Edit Product Parameters</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-start">
+                    <div class="mb-3">
+                        <label class="form-label">Product Name</label>
+                        <input type="text" class="form-control" name="name" value="{{ p.name }}" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Category</label>
+                            <input type="text" class="form-control" name="category" value="{{ p.category or '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Brand</label>
+                            <input type="text" class="form-control" name="brand" value="{{ p.brand or '' }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Purchase Price</label>
+                            <input type="number" step="any" class="form-control" name="purchase_price" value="{{ p.purchase_price }}" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Selling Price</label>
+                            <input type="number" step="any" class="form-control" name="selling_price" value="{{ p.selling_price }}" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">MRP</label>
+                            <input type="number" step="any" class="form-control" name="mrp" value="{{ p.mrp }}" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Current Stock Quantity</label>
+                        <input type="number" step="any" class="form-control" name="quantity" value="{{ p.quantity }}" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Dynamic status toggle handler
+    const checkboxes = document.querySelectorAll('.toggle-status-btn');
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            const userId = this.getAttribute('data-user-id');
+            const label = document.querySelector(`.user-status-lbl-${userId}`);
+            
+            fetch(`/admin/db-management/users/${userId}/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    label.innerText = data.new_status === 'active' ? 'Active' : 'Inactive';
+                } else {
+                    alert(data.message || 'Status update failed.');
+                    this.checked = !this.checked; // Revert checkbox
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Connection error updating status.');
+                this.checked = !this.checked;
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

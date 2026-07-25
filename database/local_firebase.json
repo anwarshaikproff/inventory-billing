@@ -1,0 +1,78 @@
+{
+  "users": {
+    "1": {
+      "username": "admin",
+      "password_hash": "scrypt:32768:8:1$pORRiap08zDW9Qsq$3fc01123a3b3e18d09e8739070ea90f85a764cf2f8e3d7b42842370d253a1b3e9af863b8465b2fc94f80af246c7a0233a68e402e6382c9588b9c9d9c628ea6f3",
+      "role": "Admin",
+      "email": "admin@store.com",
+      "status": "active",
+      "created_at": "2026-07-09 21:48:58"
+    },
+    "2": {
+      "username": "employee",
+      "password_hash": "scrypt:32768:8:1$1xm8J1gU8KOrqG4N$4ed1df4c67149bd7452c1163cc29afc9618d189336f6e86c6e51cbadc6476ce89791ec40409c8b9351bb0584ce0e706438840c1b5e51a560bb6fa1bb6b794991",
+      "role": "Employee",
+      "email": "employee@store.com",
+      "status": "active",
+      "created_at": "2026-07-09 21:48:58"
+    },
+    "3": {
+      "username": "cashier",
+      "password_hash": "scrypt:32768:8:1$EbPvAeo7ZZ19hhrx$33302d304ea1f55aaa648f4dc15e9b393c984c036650449abc7d4308262017d31536db7a02ffb200aa30c5bbc502f6b41e0441691bafdeb97276f3f07ca16a70",
+      "role": "Cashier",
+      "email": "cashier@store.com",
+      "status": "active",
+      "created_at": "2026-07-09 21:48:58"
+    },
+    "4": {
+      "username": "anwaradmin",
+      "password_hash": "scrypt:32768:8:1$jJWqvfl9hgPuSqmC$a9c43af38080484ac7385a4dd0e75bc93ae4db36ad84165fc856c96d73eebac2f5d74aa7b9b8bf884a85cd431cf97162b0d99dced8884032657dc2b471fc97bc",
+      "role": "Admin",
+      "email": "skanwar574272@gmail.com",
+      "status": "active",
+      "full_name": "ANWAR",
+      "phone": "9390035749",
+      "created_at": "2026-07-09 22:04:00"
+    }
+  },
+  "metadata": {
+    "counters": {
+      "users": 4
+    }
+  },
+  "settings": {
+    "store_name": {
+      "value": "SKML Mobiles"
+    },
+    "store_logo": {
+      "value": ""
+    },
+    "store_gst": {
+      "value": "27AAPCS1234F1Z5"
+    },
+    "store_address": {
+      "value": "101, Business Hub, Sector 5, Tech City"
+    },
+    "store_phone": {
+      "value": "+91 9876543210"
+    },
+    "store_email": {
+      "value": "billing@techmart.com"
+    },
+    "invoice_footer": {
+      "value": "Thank you for shopping with us! Please visit again."
+    },
+    "currency": {
+      "value": "INR"
+    },
+    "tax_enabled": {
+      "value": "1"
+    },
+    "tax_rate_default": {
+      "value": "18.0"
+    },
+    "auto_backup_enabled": {
+      "value": "1"
+    }
+  }
+}

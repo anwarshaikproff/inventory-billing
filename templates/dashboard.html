@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block page_title %}Dashboard Analytics{% endblock %}
+{% block page_subtitle %}Real-time store metrics, profit tracking, and sales projections{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    
+    <!-- 1. KPI COUNTER ROW -->
+    <div class="row g-4 mb-4">
+        <!-- Revenue Card -->
+        <div class="col-md-3">
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <h3>Today's Sales</h3>
+                    <p>INR {{ "{:,.2f}".format(stats.today_sales) }}</p>
+                </div>
+                <div class="stat-icon success">
+                    <i class="fas fa-wallet"></i>
+                </div>
+            </div>
+        </div>
+        <!-- Profit Card -->
+        <div class="col-md-3">
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <h3>Today's Profit</h3>
+                    <p>INR {{ "{:,.2f}".format(stats.today_profit) }}</p>
+                </div>
+                <div class="stat-icon primary">
+                    <i class="fas fa-hand-holding-dollar"></i>
+                </div>
+            </div>
+        </div>
+        <!-- Low Stock Alert -->
+        <div class="col-md-3">
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <h3>Low Stock Alert</h3>
+                    <p>{{ stats.low_stock_count }} items</p>
+                </div>
+                <div class="stat-icon warning">
+                    <i class="fas fa-triangle-exclamation"></i>
+                </div>
+            </div>
+        </div>
+        <!-- Out of Stock Alert -->
+        <div class="col-md-3">
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <h3>Out Of Stock</h3>
+                    <p class="text-danger fw-bold">{{ stats.out_of_stock_count }} items</p>
+                </div>
+                <div class="stat-icon danger">
+                    <i class="fas fa-ban"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Secondary KPI row -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 d-flex align-items-center">
+                <i class="fas fa-users-cog fs-3 text-secondary me-3"></i>
+                <div>
+                    <h6 class="text-muted mb-0 small">Total Admins</h6>
+                    <span class="fw-bold fs-5">{{ stats.total_admins }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 d-flex align-items-center">
+                <i class="fas fa-file-invoice fs-3 text-secondary me-3"></i>
+                <div>
+                    <h6 class="text-muted mb-0 small">Total Bills</h6>
+                    <span class="fw-bold fs-5">{{ stats.total_bills }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 d-flex align-items-center">
+                <i class="fas fa-boxes-stacked fs-3 text-secondary me-3"></i>
+                <div>
+                    <h6 class="text-muted mb-0 small">Total Products</h6>
+                    <span class="fw-bold fs-5">{{ stats.total_products }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 d-flex align-items-center">
+                <i class="fas fa-warehouse fs-3 text-secondary me-3"></i>
+                <div>
+                    <h6 class="text-muted mb-0 small">Available Stock</h6>
+                    <span class="fw-bold fs-5">{{ stats.total_stock }} units</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 d-flex align-items-center">
+                <i class="fas fa-calendar-week fs-3 text-secondary me-3"></i>
+                <div>
+                    <h6 class="text-muted mb-0 small">Weekly Sales</h6>
+                    <span class="fw-bold fs-5">INR {{ "{:,.2f}".format(stats.weekly_sales) }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 d-flex align-items-center">
+                <i class="fas fa-calendar-alt fs-3 text-secondary me-3"></i>
+                <div>
+                    <h6 class="text-muted mb-0 small">Monthly Sales</h6>
+                    <span class="fw-bold fs-5">INR {{ "{:,.2f}".format(stats.monthly_sales) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. ANALYTICS CHARTS SECTION -->
+    <div class="row g-4 mb-4">
+        <!-- Sales & Profits Chart -->
+        <div class="col-md-8">
+            <div class="glass-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0"><i class="fas fa-chart-line me-2 text-indigo"></i>Sales & Profit Projections (Last 7 Days)</h5>
+                </div>
+                <div style="height: 300px; position: relative;">
+                    <canvas id="salesTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stock Summary Info Card -->
+        <div class="col-md-4">
+            <div class="glass-card d-flex flex-column justify-content-between" style="height: 100%;">
+                <div>
+                    <h5 class="fw-bold mb-3"><i class="fas fa-bell me-2 text-warning"></i>Operational Health</h5>
+                    <div class="list-group list-group-flush bg-transparent">
+                        <div class="list-group-item bg-transparent border-color py-3 px-0 d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="d-block fw-semibold">Low Stock Warnings</span>
+                                <small class="text-secondary">Products running below threshold</small>
+                            </div>
+                            <span class="badge bg-warning text-dark rounded-pill">{{ stats.low_stock_count }}</span>
+                        </div>
+                        <div class="list-group-item bg-transparent border-color py-3 px-0 d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="d-block fw-semibold">Out of Stock Count</span>
+                                <small class="text-secondary">Needs replenishment immediately</small>
+                            </div>
+                            <span class="badge bg-danger rounded-pill">{{ stats.out_of_stock_count }}</span>
+                        </div>
+                        <div class="list-group-item bg-transparent border-0 py-3 px-0 d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="d-block fw-semibold">Cumulative Revenue</span>
+                                <small class="text-secondary">Life-time gross income revenue</small>
+                            </div>
+                            <span class="fw-bold text-success">INR {{ "{:,.2f}".format(stats.total_revenue) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. TOP SELLERS & SLOW MOVING INVENTORY -->
+    <div class="row g-4">
+        <!-- Best Sellers -->
+        <div class="col-md-6">
+            <div class="glass-card">
+                <h5 class="fw-bold mb-3"><i class="fas fa-crown me-2 text-warning"></i>Top 5 Best Selling Products</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>Quantity Sold</th>
+                                <th>Gross Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in top_selling %}
+                            <tr>
+                                <td><strong>{{ p.name }}</strong></td>
+                                <td>{{ p.total_qty }} units</td>
+                                <td class="text-success fw-semibold">INR {{ "{:,.2f}".format(p.total_rev) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">No sales logged yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Slow Moving Stock -->
+        <div class="col-md-6">
+            <div class="glass-card">
+                <h5 class="fw-bold mb-3"><i class="fas fa-circle-exclamation me-2 text-muted"></i>Slow-Moving Products (Least Selling)</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>Units Sold</th>
+                                <th>Total Sales</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in least_selling %}
+                            <tr>
+                                <td><strong>{{ p.name }}</strong></td>
+                                <td>{{ p.total_qty }} units</td>
+                                <td class="text-secondary">INR {{ "{:,.2f}".format(p.total_rev) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">No products catalogued.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const res = await fetch('/api/dashboard/charts');
+        const data = await res.json();
+        
+        const ctx = document.getElementById('salesTrendChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [
+                    {
+                        label: 'Sales Revenue (INR)',
+                        data: data.sales,
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 3
+                    },
+                    {
+                        label: 'Net Profits (INR)',
+                        data: data.profits,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        borderDash: [5, 5]
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim()
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(200, 200, 200, 0.08)' }
+                    }
+                }
+            }
+        });
+    } catch(err) {
+        console.error("Dashboard chart load failed:", err);
+    }
+});
+</script>
+{% endblock %}

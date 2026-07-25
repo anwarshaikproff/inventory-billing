@@ -1,0 +1,15 @@
+Flask
+opencv-python-headless
+pyzbar
+python-barcode
+qrcode
+reportlab
+Pillow
+pandas
+openpyxl
+werkzeug
+firebase-admin
+psycopg2-binary
+pymysql
+bcrypt
+

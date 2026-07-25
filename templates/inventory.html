@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block page_title %}Inventory Control{% endblock %}
+{% block page_subtitle %}Track stock valuation assets and log returns/damages/adjustments{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+
+    <!-- 1. VALUATION METRICS ROW -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <h3>Investment Cost Value</h3>
+                    <p>INR {{ "{:,.2f}".format(total_cost_val) }}</p>
+                </div>
+                <div class="stat-icon primary">
+                    <i class="fas fa-sack-dollar"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <h3>Retail Asset Value</h3>
+                    <p>INR {{ "{:,.2f}".format(total_retail_val) }}</p>
+                </div>
+                <div class="stat-icon success">
+                    <i class="fas fa-chart-line-up"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <h3>Low Stock SKU</h3>
+                    <p>{{ low_stock_items|length }} items</p>
+                </div>
+                <div class="stat-icon warning">
+                    <i class="fas fa-triangle-exclamation"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <h3>Out of Stock SKU</h3>
+                    <p>{{ out_of_stock_items|length }} items</p>
+                </div>
+                <div class="stat-icon danger">
+                    <i class="fas fa-ban"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. MAIN LAYOUT GRID -->
+    <div class="row g-4">
+        
+        <!-- Left Panel: Stock Adjustment Form -->
+        <div class="col-md-6">
+            <div class="glass-card mb-4" style="height: 100%;">
+                <h5 class="fw-bold mb-3 text-primary"><i class="fas fa-sliders me-2 text-indigo"></i>Log Stock Adjustment</h5>
+                <form action="{{ url_for('inventory.index') }}" method="POST">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Select Product *</label>
+                        <select class="form-select" name="product_id" required>
+                            <option value="">-- Choose Item --</option>
+                            {% for p in products %}
+                            <option value="{{ p.id }}">{{ p.name }} (SKU: {{ p.product_id }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3 row g-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Action *</label>
+                            <select class="form-select" name="action" required>
+                                <option value="Damaged">Damaged (Write off)</option>
+                                <option value="Returned">Returned (Increase)</option>
+                                <option value="Adjustment">General Adjustment</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Quantity *</label>
+                            <input type="number" step="any" class="form-control" name="quantity" min="0.01" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Source/Destination</label>
+                        <input type="text" class="form-control" name="source_dest" value="Store" placeholder="Store, Warehouse, Returnee">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Adjustment Notes *</label>
+                        <textarea class="form-control" name="notes" rows="2" placeholder="Reason for change..." required></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-premium w-100 py-2">
+                        <i class="fas fa-save me-2"></i>Apply Stock Adjustment
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Right Panel: Alerts List -->
+        <div class="col-md-6">
+            <div class="glass-card" style="height: 100%;">
+                <h5 class="fw-bold mb-3 text-danger"><i class="fas fa-triangle-exclamation me-2 text-danger"></i>Replenishment Alerts</h5>
+                <div class="list-group list-group-flush bg-transparent">
+                    {% for item in out_of_stock_items %}
+                    <div class="list-group-item bg-transparent border-color py-2 px-0 d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="d-block fw-bold text-danger">{{ item.name }}</span>
+                            <small class="text-secondary">SKU: {{ item.product_id }}</small>
+                        </div>
+                        <span class="badge bg-danger">OUT OF STOCK</span>
+                    </div>
+                    {% endfor %}
+                    
+                    {% for item in low_stock_items %}
+                    <div class="list-group-item bg-transparent border-color py-2 px-0 d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="d-block fw-semibold text-warning">{{ item.name }}</span>
+                            <small class="text-secondary">SKU: {{ item.product_id }}</small>
+                        </div>
+                        <span class="badge bg-warning text-dark">{{ item.quantity }} {{ item.unit }} left</span>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if not out_of_stock_items and not low_stock_items %}
+                    <div class="text-center text-muted py-4 small">
+                        <i class="fas fa-shield-halved fs-3 mb-2 d-block text-success"></i> All items are well-stocked.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

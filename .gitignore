@@ -1,0 +1,25 @@
+# Security & Environment Secrets
+.env
+
+# Python Compiled Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environments
+venv/
+env/
+.venv/
+ENV/
+
+# Temporary Files, Test Databases & Logs
+database_test.db
+*.log
+*.sqlite3-journal
+
+# IDE & OS Specific Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

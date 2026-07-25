@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}POS Billing Counter - SKML Mobiles{% endblock %}
+{% block page_title %}POS Billing Terminal{% endblock %}
+{% block page_subtitle %}Retail sales transactions, barcode scan, and automated checkout discounts{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0 pos-container">
+    
+    <!-- 1. LEFT MAIN COLUMN: CART ITEMS & SEARCH -->
+    <div class="pos-cart-panel gap-3">
+        
+        <!-- Search bar with Autocomplete & Voice Search -->
+        <div class="glass-card py-3 d-flex align-items-center gap-2">
+            <div class="search-suggestions-container flex-grow-1">
+                <div class="input-group">
+                    <span class="input-group-text bg-transparent border-end-0 border-color text-secondary"><i class="fas fa-search"></i></span>
+                    <input type="text" id="pos-search-input" class="form-control border-start-0" placeholder="Scan Barcode or Type Product Name (F2)..." autocomplete="off">
+                </div>
+                <div id="pos-suggestions" class="search-suggestions"></div>
+            </div>
+            
+            <!-- Voice search toggle -->
+            <button class="btn btn-theme text-primary" id="pos-voice-search-btn" title="Search via Voice Command">
+                <i class="fas fa-microphone"></i>
+            </button>
+            
+            <!-- Webcam scanner toggle -->
+            <button class="btn btn-theme text-indigo" id="pos-camera-scan-btn" onclick="toggleWebcamScanner()" title="Toggle Webcam Barcode Scanner (F7)">
+                <i class="fas fa-camera"></i>
+            </button>
+        </div>
+
+        <!-- Webcam Stream Box (hidden by default) -->
+        <div class="glass-card d-none" id="scanner-preview-container">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-bold"><i class="fas fa-video me-2 text-indigo"></i>Live Scanner Feed</span>
+                <button class="btn btn-sm btn-outline-danger border-0" onclick="stopWebcamScanner()"><i class="fas fa-times"></i></button>
+            </div>
+            <video id="scanner-video-preview" autoplay playsinline></video>
+            <div class="small text-secondary mt-1 text-center">Place barcode in front of camera lens. Autodecodes every second.</div>
+        </div>
+
+        <!-- Cart Table -->
+        <div class="pos-billing-table p-3">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th style="width: 130px;">Quantity</th>
+                            <th>MRP</th>
+                            <th>Discount</th>
+                            <th>GST</th>
+                            <th>Unit Price</th>
+                            <th>Subtotal</th>
+                            <th style="width: 50px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="cart-tbody">
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-5">
+                                <i class="fas fa-cart-shopping fs-2 mb-3 d-block text-secondary"></i>
+                                Cart is empty. Scan barcodes or search items to populate billing items list.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Keyboard Shortcuts Help -->
+        <div class="keyboard-shortcuts-footer">
+            <span><span class="shortcut-badge">F2</span> Search Items</span>
+            <span><span class="shortcut-badge">F4</span> Enter Cash Received</span>
+            <span><span class="shortcut-badge">F7</span> Toggle Scanner</span>
+            <span><span class="shortcut-badge">F8</span> Set Cash Mode</span>
+            <span><span class="shortcut-badge">F9</span> Set UPI Mode</span>
+            <span><span class="shortcut-badge">F10</span> Checkout Bill</span>
+        </div>
+    </div>
+
+    <!-- 2. RIGHT SIDEBAR: CHECKOUT SETTINGS & TOTALS -->
+    <div class="pos-checkout-sidebar">
+        <div>
+            <!-- Customer Select -->
+            <div class="mb-3">
+                <label class="form-label fw-bold small text-uppercase">Customer Registry</label>
+                <select class="form-select" id="pos-customer-select" onchange="onCustomerChange()">
+                    <option value="">Walk-in Customer</option>
+                    {% for c in customers %}
+                    <option value="{{ c.id }}" data-points="{{ c.reward_points }}">{{ c.name }} ({{ c.phone }})</option>
+                    {% endfor %}
+                </select>
+                <div class="d-flex justify-content-between mt-1">
+                    <button class="btn btn-link p-0 text-decoration-none small text-indigo" data-bs-toggle="modal" data-bs-target="#addCustomerModal">
+                        <i class="fas fa-user-plus me-1"></i>New Customer
+                    </button>
+                    <span class="small text-muted" id="membership-tier-badge">No loyalty membership</span>
+                </div>
+            </div>
+
+            <!-- Billing Customer details -->
+            <div class="mb-3 p-3 rounded" style="background-color: var(--bg-primary); border: 1px solid var(--border-color);">
+                <label class="form-label fw-bold small text-uppercase text-secondary mb-2">Billing Customer Info</label>
+                <input type="text" id="pos-customer-name" class="form-control mb-2" placeholder="Customer Name (e.g. Walk-in)">
+                <input type="text" id="pos-customer-phone" class="form-control mb-2" placeholder="Mobile Number">
+                <input type="email" id="pos-customer-email" class="form-control mb-2" placeholder="Email (Optional)">
+                <textarea id="pos-customer-address" class="form-control mb-2" rows="2" placeholder="Billing Address"></textarea>
+            </div>
+
+            <!-- Customers list for Javascript reference -->
+            <script id="customers-json" type="application/json">
+            [
+                {% for c in customers %}
+                {
+                    "id": {{ c.id }},
+                    "name": {{ c.name|tojson }},
+                    "phone": {{ c.phone|tojson }},
+                    "email": {{ (c.email or '')|tojson }},
+                    "address": {{ (c.address or '')|tojson }},
+                    "points": {{ c.reward_points }}
+                }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ]
+            </script>
+
+            <!-- Coupon discount input -->
+            <div class="mb-4">
+                <label class="form-label fw-bold small text-uppercase">Coupon Discount</label>
+                <div class="input-group">
+                    <input type="text" id="coupon-code-input" class="form-control" placeholder="Promo code...">
+                    <button class="btn btn-outline-primary" type="button" onclick="applyCoupon()">Apply</button>
+                </div>
+                <div class="small text-secondary mt-1">
+                    Active Codes: 
+                    {% for o in active_coupons %}
+                    <code>{{ o.code }}</code> 
+                    {% else %}
+                    None
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Demographic: Student -->
+            <div class="form-check form-switch mb-4">
+                <input class="form-check-input" type="checkbox" role="switch" id="student-toggle" onchange="onStudentToggle(this.checked)">
+                <label class="form-check-label fw-semibold text-secondary" for="student-toggle">Apply Student Discount (3%)</label>
+            </div>
+
+            <hr class="border-color mb-4">
+
+            <!-- Dynamic Pricing summaries -->
+            <div class="d-flex justify-content-between mb-2">
+                <span class="text-secondary">Subtotal:</span>
+                <span class="fw-semibold" id="pos-subtotal">INR 0.00</span>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+                <span class="text-secondary">Discounts Applied:</span>
+                <span class="fw-semibold text-danger" id="pos-discounts">- INR 0.00</span>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+                <span class="text-secondary">GST Taxes:</span>
+                <span class="fw-semibold text-success" id="pos-gst">+ INR 0.00</span>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+                <span class="text-secondary">Round Off:</span>
+                <span class="fw-semibold text-muted" id="pos-round-off">0.00</span>
+            </div>
+            
+            <div class="d-flex justify-content-between border-top border-color pt-3 mt-3 mb-4">
+                <span class="fw-bold fs-5 text-primary">Grand Total:</span>
+                <span class="fw-bold fs-5 text-indigo" id="pos-grand-total">INR 0.00</span>
+            </div>
+
+            <!-- Payment mode selects -->
+            <div class="mb-3">
+                <label class="form-label fw-bold small text-uppercase">Payment Method</label>
+                <select class="form-select" id="payment-mode-select">
+                    <option value="Cash">Cash (F8)</option>
+                    <option value="UPI">UPI (F9)</option>
+                    <option value="Credit Card">Credit Card</option>
+                    <option value="Debit Card">Debit Card</option>
+                    <option value="Wallet">Wallet</option>
+                </select>
+            </div>
+
+            <!-- Cash tender change calculation -->
+            <div class="mb-4" id="cash-received-container">
+                <label class="form-label fw-bold small text-uppercase">Cash Received (F4)</label>
+                <input type="number" step="any" id="cash-received-input" class="form-control form-control-lg fw-bold" placeholder="0.00">
+                <div class="d-flex justify-content-between mt-2 align-items-center">
+                    <span class="text-secondary">Change Due:</span>
+                    <span id="pos-balance-change" class="fs-5 fw-bold text-success">INR 0.00</span>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-premium w-100 py-3 fs-5" onclick="processPOSCheckout()">
+            <i class="fas fa-file-invoice-dollar me-2"></i>Checkout & Print (F10)
+        </button>
+    </div>
+</div>
+
+<!-- NEW CUSTOMER MODAL -->
+<div class="modal fade" id="addCustomerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-secondary text-primary">
+            <div class="modal-header border-color">
+                <h5 class="modal-title fw-bold"><i class="fas fa-user-plus me-2"></i>Register Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('customers.index') }}" method="POST">
+                <div class="modal-body row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Customer Name *</label>
+                        <input type="text" class="form-control" name="name" placeholder="Enter customer name" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Phone Number *</label>
+                        <input type="text" class="form-control" name="phone" placeholder="Enter mobile number" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-control" name="email" placeholder="customer@email.com">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Address</label>
+                        <textarea class="form-control" name="address" rows="2" placeholder="Billing location details"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-color">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium">Register</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- FAST PRODUCT REGISTER MODAL (TRIGGERED IF SCANNED BARCODE NOT FOUND) -->
+<div class="modal fade" id="addProductModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-secondary text-primary">
+            <div class="modal-header border-color">
+                <h5 class="modal-title fw-bold text-danger"><i class="fas fa-triangle-exclamation me-2"></i>Product Not Found - Add SKU</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <!-- Submits to Products Add route -->
+            <form action="{{ url_for('products.add_product') }}" method="POST" enctype="multipart/form-data">
+                <div class="modal-body row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Product Name *</label>
+                        <input type="text" class="form-control" name="name" placeholder="Enter product name" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Product ID (Unique SKU) *</label>
+                        <input type="text" class="form-control" name="product_id" placeholder="e.g. ELE-MAC-01" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Barcode Value *</label>
+                        <input type="text" class="form-control" id="modal-barcode-field" name="barcode" readonly required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">QR Code Value</label>
+                        <input type="text" class="form-control" name="qrcode" placeholder="Defaults to Barcode value">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Category</label>
+                        <input type="text" class="form-control" name="category" placeholder="Grocery, Apparel, etc.">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Brand</label>
+                        <input type="text" class="form-control" name="brand" placeholder="Brand name">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Unit type</label>
+                        <input type="text" class="form-control" name="unit" value="pcs">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Purchase Price *</label>
+                        <input type="number" step="any" class="form-control" name="purchase_price" placeholder="Cost price" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">MRP *</label>
+                        <input type="number" step="any" class="form-control" name="mrp" placeholder="MRP" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Selling Price *</label>
+                        <input type="number" step="any" class="form-control" name="selling_price" placeholder="Selling price" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Stock Quantity *</label>
+                        <input type="number" step="any" class="form-control" name="quantity" placeholder="Units in stock" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-color">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium">Register Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
