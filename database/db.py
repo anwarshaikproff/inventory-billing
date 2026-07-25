@@ -260,665 +260,116 @@ def execute_db(query, args=(), commit=True):
         raise e
 
 def init_db(app=None):
-    """Registers standard SQL table structures and seeds defaults on system startup."""
+    """Registers standard SQL table structures and drops obsolete tables as instructed."""
     conn = get_connection()
     is_sqlite = (_CHOSEN_DB_TYPE == 'SQLite')
     cur = conn.cursor()
 
-    if is_sqlite:
-        schema_queries = [
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                full_name TEXT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                role TEXT CHECK(role IN ('Admin', 'Employee', 'Cashier')) NOT NULL,
-                email TEXT UNIQUE,
-                phone TEXT,
-                status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
-                last_login TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS login_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                ip_address TEXT,
-                status TEXT,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS customers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                phone TEXT UNIQUE NOT NULL,
-                email TEXT,
-                address TEXT,
-                reward_points INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS suppliers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                phone TEXT NOT NULL,
-                email TEXT,
-                gst_number TEXT,
-                balance REAL DEFAULT 0.0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS products (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                product_id TEXT UNIQUE NOT NULL,
-                barcode TEXT UNIQUE,
-                qrcode TEXT UNIQUE,
-                category TEXT,
-                brand TEXT,
-                supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
-                purchase_price REAL NOT NULL,
-                mrp REAL NOT NULL,
-                selling_price REAL NOT NULL,
-                gst REAL DEFAULT 0.0,
-                discount REAL DEFAULT 0.0,
-                quantity REAL NOT NULL DEFAULT 0.0,
-                unit TEXT DEFAULT 'pcs',
-                weight REAL,
-                expiry_date TEXT,
-                mfg_date TEXT,
-                description TEXT,
-                image_path TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                stock_status TEXT
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS offers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                type TEXT CHECK(type IN ('Percentage', 'Flat', 'BOGO', 'Combo', 'Membership', 'Student', 'Senior Citizen')) NOT NULL,
-                value REAL NOT NULL DEFAULT 0.0,
-                min_purchase REAL DEFAULT 0.0,
-                code TEXT UNIQUE,
-                start_date TEXT,
-                end_date TEXT,
-                active INTEGER DEFAULT 1 CHECK(active IN (0, 1))
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS sales (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                invoice_number TEXT UNIQUE NOT NULL,
-                customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
-                cashier_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                subtotal REAL NOT NULL,
-                discount REAL DEFAULT 0.0,
-                gst REAL DEFAULT 0.0,
-                grand_total REAL NOT NULL,
-                payment_mode TEXT CHECK(payment_mode IN ('Cash', 'UPI', 'Credit Card', 'Debit Card', 'Wallet')) NOT NULL,
-                cash_received REAL DEFAULT 0.0,
-                balance REAL DEFAULT 0.0,
-                status TEXT DEFAULT 'Active'
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS sales_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE,
-                product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
-                quantity REAL NOT NULL,
-                mrp REAL NOT NULL,
-                selling_price REAL NOT NULL,
-                discount REAL DEFAULT 0.0,
-                gst REAL DEFAULT 0.0,
-                subtotal REAL NOT NULL
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS inventory_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
-                action TEXT CHECK(action IN ('Stock In', 'Sale', 'Damaged', 'Returned', 'Adjustment')) NOT NULL,
-                quantity REAL NOT NULL,
-                source_dest TEXT,
-                notes TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS backups (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filepath TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS deletion_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                table_name TEXT NOT NULL,
-                record_id TEXT NOT NULL,
-                deleted_by TEXT NOT NULL,
-                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                record_details TEXT
-            );
-            """
-        ]
-    elif _CHOSEN_DB_TYPE == 'PostgreSQL':
-        schema_queries = [
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                full_name VARCHAR(255),
-                username VARCHAR(255) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
-                role VARCHAR(50) NOT NULL,
-                email VARCHAR(255) UNIQUE,
-                phone VARCHAR(50),
-                status VARCHAR(50) DEFAULT 'active',
-                last_login TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                CONSTRAINT chk_role CHECK (role IN ('Admin', 'Employee', 'Cashier')),
-                CONSTRAINT chk_user_status CHECK (status IN ('active', 'inactive'))
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS login_history (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                ip_address VARCHAR(255),
-                status VARCHAR(50)
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS settings (
-                "key" VARCHAR(255) PRIMARY KEY,
-                "value" TEXT NOT NULL
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS customers (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                phone VARCHAR(255) UNIQUE NOT NULL,
-                email VARCHAR(255),
-                address TEXT,
-                reward_points INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS suppliers (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                phone VARCHAR(255) NOT NULL,
-                email VARCHAR(255),
-                gst_number VARCHAR(255),
-                balance DOUBLE PRECISION DEFAULT 0.0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS products (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                product_id VARCHAR(255) UNIQUE NOT NULL,
-                barcode VARCHAR(255) UNIQUE,
-                qrcode VARCHAR(255) UNIQUE,
-                category VARCHAR(255),
-                brand VARCHAR(255),
-                supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
-                purchase_price DOUBLE PRECISION NOT NULL,
-                mrp DOUBLE PRECISION NOT NULL,
-                selling_price DOUBLE PRECISION NOT NULL,
-                gst DOUBLE PRECISION DEFAULT 0.0,
-                discount DOUBLE PRECISION DEFAULT 0.0,
-                quantity DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-                unit VARCHAR(50) DEFAULT 'pcs',
-                weight DOUBLE PRECISION,
-                expiry_date VARCHAR(50),
-                mfg_date VARCHAR(50),
-                description TEXT,
-                image_path VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                stock_status VARCHAR(50)
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS offers (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                type VARCHAR(50) CHECK(type IN ('Percentage', 'Flat', 'BOGO', 'Combo', 'Membership', 'Student', 'Senior Citizen')) NOT NULL,
-                value DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-                min_purchase DOUBLE PRECISION DEFAULT 0.0,
-                code VARCHAR(255) UNIQUE,
-                start_date VARCHAR(50),
-                end_date VARCHAR(50),
-                active INTEGER DEFAULT 1 CHECK(active IN (0, 1))
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS sales (
-                id SERIAL PRIMARY KEY,
-                invoice_number VARCHAR(255) UNIQUE NOT NULL,
-                customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
-                cashier_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                subtotal DOUBLE PRECISION NOT NULL,
-                discount DOUBLE PRECISION DEFAULT 0.0,
-                gst DOUBLE PRECISION DEFAULT 0.0,
-                grand_total DOUBLE PRECISION NOT NULL,
-                payment_mode VARCHAR(50) NOT NULL,
-                cash_received DOUBLE PRECISION DEFAULT 0.0,
-                balance DOUBLE PRECISION DEFAULT 0.0,
-                status VARCHAR(50) DEFAULT 'Active',
-                CONSTRAINT chk_payment_mode CHECK (payment_mode IN ('Cash', 'UPI', 'Credit Card', 'Debit Card', 'Wallet'))
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS sales_items (
-                id SERIAL PRIMARY KEY,
-                sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE,
-                product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
-                quantity DOUBLE PRECISION NOT NULL,
-                mrp DOUBLE PRECISION NOT NULL,
-                selling_price DOUBLE PRECISION NOT NULL,
-                discount DOUBLE PRECISION DEFAULT 0.0,
-                gst DOUBLE PRECISION DEFAULT 0.0,
-                subtotal DOUBLE PRECISION NOT NULL
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS inventory_history (
-                id SERIAL PRIMARY KEY,
-                product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
-                action VARCHAR(50) NOT NULL,
-                quantity DOUBLE PRECISION NOT NULL,
-                source_dest VARCHAR(255),
-                notes TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                CONSTRAINT chk_inv_action CHECK (action IN ('Stock In', 'Sale', 'Damaged', 'Returned', 'Adjustment'))
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS backups (
-                id SERIAL PRIMARY KEY,
-                filepath VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS deletion_logs (
-                id SERIAL PRIMARY KEY,
-                table_name VARCHAR(255) NOT NULL,
-                record_id VARCHAR(255) NOT NULL,
-                deleted_by VARCHAR(255) NOT NULL,
-                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                record_details TEXT
-            );
-            """
-        ]
-    else:
-        # MySQL schema queries
-        schema_queries = [
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                full_name VARCHAR(255),
-                username VARCHAR(255) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
-                role VARCHAR(50) NOT NULL,
-                email VARCHAR(255) UNIQUE,
-                phone VARCHAR(50),
-                status VARCHAR(50) DEFAULT 'active',
-                last_login DATETIME,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                CONSTRAINT chk_role CHECK (role IN ('Admin', 'Employee', 'Cashier')),
-                CONSTRAINT chk_user_status CHECK (status IN ('active', 'inactive'))
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS login_history (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT,
-                login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                ip_address VARCHAR(255),
-                status VARCHAR(50),
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS settings (
-                `key` VARCHAR(255) PRIMARY KEY,
-                `value` TEXT NOT NULL
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS customers (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                phone VARCHAR(255) UNIQUE NOT NULL,
-                email VARCHAR(255),
-                address TEXT,
-                reward_points INT DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS suppliers (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                phone VARCHAR(255) NOT NULL,
-                email VARCHAR(255),
-                gst_number VARCHAR(255),
-                balance DOUBLE DEFAULT 0.0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS products (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                product_id VARCHAR(255) UNIQUE NOT NULL,
-                barcode VARCHAR(255) UNIQUE,
-                qrcode VARCHAR(255) UNIQUE,
-                category VARCHAR(255),
-                brand VARCHAR(255),
-                supplier_id INT,
-                purchase_price DOUBLE NOT NULL,
-                mrp DOUBLE NOT NULL,
-                selling_price DOUBLE NOT NULL,
-                gst DOUBLE DEFAULT 0.0,
-                discount DOUBLE DEFAULT 0.0,
-                quantity DOUBLE NOT NULL DEFAULT 0.0,
-                unit VARCHAR(50) DEFAULT 'pcs',
-                weight DOUBLE,
-                expiry_date VARCHAR(50),
-                mfg_date VARCHAR(50),
-                description TEXT,
-                image_path VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                stock_status VARCHAR(50),
-                FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS offers (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                type VARCHAR(50) NOT NULL,
-                value DOUBLE NOT NULL DEFAULT 0.0,
-                min_purchase DOUBLE DEFAULT 0.0,
-                code VARCHAR(255) UNIQUE,
-                start_date VARCHAR(50),
-                end_date VARCHAR(50),
-                active INT DEFAULT 1,
-                CONSTRAINT chk_offer_type CHECK (type IN ('Percentage', 'Flat', 'BOGO', 'Combo', 'Membership', 'Student', 'Senior Citizen')),
-                CONSTRAINT chk_offer_active CHECK (active IN (0, 1))
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS sales (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                invoice_number VARCHAR(255) UNIQUE NOT NULL,
-                customer_id INT,
-                cashier_id INT,
-                date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                subtotal DOUBLE NOT NULL,
-                discount DOUBLE DEFAULT 0.0,
-                gst DOUBLE DEFAULT 0.0,
-                grand_total DOUBLE NOT NULL,
-                payment_mode VARCHAR(50) NOT NULL,
-                cash_received DOUBLE DEFAULT 0.0,
-                balance DOUBLE DEFAULT 0.0,
-                status VARCHAR(50) DEFAULT 'Active',
-                FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
-                FOREIGN KEY (cashier_id) REFERENCES users(id) ON DELETE SET NULL,
-                CONSTRAINT chk_payment_mode CHECK (payment_mode IN ('Cash', 'UPI', 'Credit Card', 'Debit Card', 'Wallet'))
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS sales_items (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                sale_id INT,
-                product_id INT,
-                quantity DOUBLE NOT NULL,
-                mrp DOUBLE NOT NULL,
-                selling_price DOUBLE NOT NULL,
-                discount DOUBLE DEFAULT 0.0,
-                gst DOUBLE DEFAULT 0.0,
-                subtotal DOUBLE NOT NULL,
-                FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
-                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS inventory_history (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                product_id INT,
-                action VARCHAR(50) NOT NULL,
-                quantity DOUBLE NOT NULL,
-                source_dest VARCHAR(255),
-                notes TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-                CONSTRAINT chk_inv_action CHECK (action IN ('Stock In', 'Sale', 'Damaged', 'Returned', 'Adjustment'))
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS backups (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                filepath VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS deletion_logs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                table_name VARCHAR(255) NOT NULL,
-                record_id VARCHAR(255) NOT NULL,
-                deleted_by VARCHAR(255) NOT NULL,
-                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                record_details TEXT
-            );
-            """
-        ]
+    # Drop all remaining old tables from previous multi-table relational ERP design
+    legacy_tables = [
+        'sales_items', 'sales', 'offers', 'inventory_history', 'backups',
+        'deletion_logs', 'customers', 'suppliers', 'products', 'settings',
+        'login_history', 'users'
+    ]
+    for tbl in legacy_tables:
+        try:
+            if _CHOSEN_DB_TYPE == 'PostgreSQL':
+                cur.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE;")
+            else:
+                cur.execute(f"DROP TABLE IF EXISTS {tbl};")
+        except Exception as e:
+            print(f"Notice during legacy table drop ({tbl}): {e}")
 
     try:
-        for q in schema_queries:
-            cur.execute(q)
         conn.commit()
+    except Exception:
+        pass
+
+    # Create the unified billing record table
+    if _CHOSEN_DB_TYPE == 'PostgreSQL':
+        billing_schema = """
+        CREATE TABLE IF NOT EXISTS billing (
+            id SERIAL PRIMARY KEY,
+            customer_name VARCHAR(255) NOT NULL,
+            phone_no VARCHAR(50) NOT NULL,
+            item_name VARCHAR(255) NOT NULL,
+            cost_of_the_item DOUBLE PRECISION NOT NULL,
+            item_qty DOUBLE PRECISION NOT NULL,
+            item_price DOUBLE PRECISION NOT NULL,
+            payment_type VARCHAR(50) NOT NULL,
+            bill_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT chk_payment_type CHECK (LOWER(payment_type) IN ('cash', 'online', 'upi', 'card', 'debit card', 'credit card'))
+        );
+        """
+    elif is_sqlite:
+        billing_schema = """
+        CREATE TABLE IF NOT EXISTS billing (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_name TEXT NOT NULL,
+            phone_no TEXT NOT NULL,
+            item_name TEXT NOT NULL,
+            cost_of_the_item REAL NOT NULL,
+            item_qty REAL NOT NULL,
+            item_price REAL NOT NULL,
+            payment_type TEXT NOT NULL,
+            bill_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    else:
+        # MySQL schema
+        billing_schema = """
+        CREATE TABLE IF NOT EXISTS billing (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            customer_name VARCHAR(255) NOT NULL,
+            phone_no VARCHAR(50) NOT NULL,
+            item_name VARCHAR(255) NOT NULL,
+            cost_of_the_item DOUBLE NOT NULL,
+            item_qty DOUBLE NOT NULL,
+            item_price DOUBLE NOT NULL,
+            payment_type VARCHAR(50) NOT NULL,
+            bill_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+
+    try:
+        cur.execute(billing_schema)
+        conn.commit()
+        print("Unified 'billing' table created successfully and legacy tables removed.")
     except Exception as e:
-        print(f"Error creating database schemas: {e}")
+        print(f"Error creating billing schema: {e}")
         cur.close()
         conn.close()
         return False
-
-    # Seed Default Users
-    cur.execute("SELECT COUNT(*) FROM users")
-    count = cur.fetchone()[0] if is_sqlite else cur.fetchone()
-    if not is_sqlite and count:
-        if isinstance(count, dict):
-            count = list(count.values())[0]
-        else:
-            count = count[0]
-    else:
-        count = count[0] if isinstance(count, tuple) else count
-        
-    if count == 0:
-        users_to_seed = [
-            ('admin', hash_password('admin123'), 'Admin', 'admin@store.com', 'Admin User'),
-            ('employee', hash_password('emp123'), 'Employee', 'employee@store.com', 'Store Employee'),
-            ('cashier', hash_password('cash123'), 'Cashier', 'cashier@store.com', 'Billing Cashier')
-        ]
-        insert_query = "INSERT INTO users (username, password_hash, role, email, full_name) VALUES (%s, %s, %s, %s, %s)"
-        insert_query = translate_query(insert_query, is_sqlite)
-        for u in users_to_seed:
-            cur.execute(insert_query, u)
-        conn.commit()
-        print("Default users seeded.")
-
-    # Seed Default Settings
-    cur.execute("SELECT COUNT(*) FROM settings")
-    set_count = cur.fetchone()
-    if not is_sqlite and set_count:
-        if isinstance(set_count, dict):
-            set_count = list(set_count.values())[0]
-        else:
-            set_count = set_count[0]
-    else:
-        set_count = set_count[0] if isinstance(set_count, tuple) else set_count
-        
-    if set_count == 0:
-        default_settings = [
-            ('store_name', 'SKML Mobiles'),
-            ('store_logo', ''),
-            ('store_gst', '27AAPCS1234F1Z5'),
-            ('store_address', '101, Business Hub, Sector 5, Tech City'),
-            ('store_phone', '+91 9876543210'),
-            ('store_email', 'billing@techmart.com'),
-            ('invoice_footer', 'Thank you for shopping with us! Please visit again.'),
-            ('currency', 'INR'),
-            ('tax_enabled', '1'),
-            ('tax_rate_default', '18.0'),
-            ('auto_backup_enabled', '1')
-        ]
-        insert_setting = "INSERT INTO settings (key, value) VALUES (%s, %s)"
-        insert_setting = translate_query(insert_setting, is_sqlite)
-        for s in default_settings:
-            cur.execute(insert_setting, s)
-        conn.commit()
-        print("Default settings seeded.")
 
     cur.close()
     conn.close()
     return True
 
 def get_report_data(report_type, start_dt=None, end_dt=None):
-    """Compiles list of records for audits report downloads."""
-    if report_type == 'sales':
+    """Compiles list of records from the unified billing table for report downloads."""
+    if start_dt and end_dt:
         rows = query_db(
-            """SELECT s.invoice_number, s.date, COALESCE(c.name, 'Walk-in') AS customer_name,
-                      u.username AS cashier_name, s.subtotal, s.discount, s.gst, s.grand_total,
-                      s.payment_mode, s.status
-               FROM sales s
-               LEFT JOIN customers c ON s.customer_id = c.id
-               JOIN users u ON s.cashier_id = u.id
-               WHERE s.date >= %s AND s.date <= %s
-               ORDER BY s.date DESC""",
+            "SELECT * FROM billing WHERE bill_date >= %s AND bill_date <= %s ORDER BY bill_date DESC",
             (start_dt, end_dt)
         )
-        res = []
-        for r in rows:
-            res.append({
-                'Invoice Number': r['invoice_number'],
-                'Date': str(r['date']),
-                'Customer': r['customer_name'],
-                'Cashier': r['cashier_name'],
-                'Subtotal': r['subtotal'],
-                'Discount': r['discount'],
-                'GST': r['gst'],
-                'Grand Total': r['grand_total'],
-                'Payment Mode': r['payment_mode'],
-                'Status': r['status']
-            })
-        return res
-
-    elif report_type == 'gst':
-        rows = query_db(
-            """SELECT s.invoice_number, s.date, p.name AS product_name, p.category,
-                      p.gst AS gst_rate, si.quantity, si.gst AS tax_amount, si.subtotal AS taxable_value
-               FROM sales_items si
-               JOIN sales s ON si.sale_id = s.id
-               JOIN products p ON si.product_id = p.id
-               WHERE s.date >= %s AND s.date <= %s AND s.status != 'Cancelled'
-               ORDER BY s.date DESC""",
-            (start_dt, end_dt)
-        )
-        res = []
-        for r in rows:
-            res.append({
-                'Invoice Number': r['invoice_number'],
-                'Date': str(r['date']),
-                'Product Name': r['product_name'],
-                'Category': r['category'],
-                'GST Rate (%)': r['gst_rate'],
-                'Quantity': r['quantity'],
-                'Tax Amount': r['tax_amount'],
-                'Net Taxable Value': r['taxable_value']
-            })
-        return res
-
-    elif report_type == 'discounts':
-        rows = query_db(
-            """SELECT s.invoice_number, s.date, s.subtotal, s.discount, s.grand_total, s.payment_mode
-               FROM sales s
-               WHERE s.date >= %s AND s.date <= %s AND s.discount > 0 AND s.status != 'Cancelled'
-               ORDER BY s.date DESC""",
-            (start_dt, end_dt)
-        )
-        res = []
-        for r in rows:
-            res.append({
-                'Invoice Number': r['invoice_number'],
-                'Date': str(r['date']),
-                'Subtotal': r['subtotal'],
-                'Discount Applied': r['discount'],
-                'Final Total': r['grand_total'],
-                'Payment Mode': r['payment_mode']
-            })
-        return res
-
-    elif report_type == 'inventory':
-        rows = query_db(
-            """SELECT p.product_id, p.name, p.brand, p.category, p.purchase_price, p.selling_price, p.quantity, p.stock_status
-               FROM products p
-               ORDER BY p.name ASC"""
-        )
-        res = []
-        for r in rows:
-            qty = float(r['quantity'] or 0.0)
-            cost = float(r['purchase_price'] or 0.0)
-            res.append({
-                'Product ID': r['product_id'],
-                'Name': r['name'],
-                'Brand': r['brand'],
-                'Category': r['category'],
-                'Purchase Price': r['purchase_price'],
-                'Selling Price': r['selling_price'],
-                'Quantity': qty,
-                'Stock Value': qty * cost,
-                'Stock Status': r['stock_status']
-            })
-        return res
-
-    return []
+    else:
+        rows = query_db("SELECT * FROM billing ORDER BY bill_date DESC")
+        
+    res = []
+    for r in rows:
+        res.append({
+            'Bill ID': r['id'],
+            'Customer Name': r['customer_name'],
+            'Phone No': r['phone_no'],
+            'Item Name': r['item_name'],
+            'Item Cost': r['cost_of_the_item'],
+            'Quantity': r['item_qty'],
+            'Total Price': r['item_price'],
+            'Payment Type': r['payment_type'],
+            'Date': str(r['bill_date'])
+        })
+    return res
 
 def get_inventory_history_logs(limit=100):
-    """Retrieves list of recent inventory adjustments."""
-    return query_db(
-        """SELECT ih.*, p.name AS product_name, p.product_id AS custom_product_id
-           FROM inventory_history ih
-           JOIN products p ON ih.product_id = p.id
-           ORDER BY ih.timestamp DESC
-           LIMIT %s""",
-        (limit,)
-    )
+    """Retrieves list of recent billing activity logs."""
+    return query_db("SELECT * FROM billing ORDER BY bill_date DESC LIMIT %s", (limit,))
