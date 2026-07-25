@@ -119,6 +119,19 @@ def get_connection():
     mysql_db = os.environ.get('MYSQL_DB') or os.environ.get('DATABASE_NAME')
     database_url = os.environ.get('DATABASE_URL')
 
+    # Check if DATABASE_URL is a PostgreSQL URL
+    if database_url and (database_url.startswith("postgresql://") or database_url.startswith("postgres://")):
+        try:
+            import psycopg2
+            conn = psycopg2.connect(database_url, connect_timeout=15)
+            _CHOSEN_DB_TYPE = 'PostgreSQL'
+            DB_STATUS['status'] = 'Connected'
+            DB_STATUS['db_type'] = 'PostgreSQL'
+            DB_STATUS['last_sync_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            return conn
+        except Exception as e:
+            print(f"PostgreSQL connection failed: {e}. Falling back to SQLite.")
+
     mysql_params = None
 
     # Check if DATABASE_URL is a MySQL URL
@@ -190,6 +203,9 @@ def query_db(query, args=(), one=False):
 
     if is_sqlite:
         cur = conn.cursor()
+    elif _CHOSEN_DB_TYPE == 'PostgreSQL':
+        import psycopg2.extras
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     else:
         cur = conn.cursor(pymysql.cursors.DictCursor)
 
@@ -199,7 +215,7 @@ def query_db(query, args=(), one=False):
         cur.close()
         conn.close()
 
-        if is_sqlite:
+        if is_sqlite or _CHOSEN_DB_TYPE == 'PostgreSQL':
             res = [dict(row) for row in rv]
         else:
             res = list(rv)
@@ -219,10 +235,17 @@ def execute_db(query, args=(), commit=True):
     cur = conn.cursor()
     last_id = None
     try:
-        cur.execute(query, args)
-        
-        if is_sqlite or _CHOSEN_DB_TYPE == 'MySQL':
-            last_id = cur.lastrowid
+        if _CHOSEN_DB_TYPE == 'PostgreSQL' and query.strip().upper().startswith('INSERT INTO') and 'RETURNING' not in query.strip().upper() and 'INSERT INTO SETTINGS' not in query.strip().upper():
+            query = query.rstrip(';') + ' RETURNING id'
+            cur.execute(query, args)
+            try:
+                last_id = cur.fetchone()[0]
+            except Exception:
+                pass
+        else:
+            cur.execute(query, args)
+            if is_sqlite or _CHOSEN_DB_TYPE == 'MySQL':
+                last_id = cur.lastrowid
             
         if commit:
             conn.commit()
@@ -396,8 +419,164 @@ def init_db(app=None):
             );
             """
         ]
+    elif _CHOSEN_DB_TYPE == 'PostgreSQL':
+        schema_queries = [
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                full_name VARCHAR(255),
+                username VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                role VARCHAR(50) NOT NULL,
+                email VARCHAR(255) UNIQUE,
+                phone VARCHAR(50),
+                status VARCHAR(50) DEFAULT 'active',
+                last_login TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT chk_role CHECK (role IN ('Admin', 'Employee', 'Cashier')),
+                CONSTRAINT chk_user_status CHECK (status IN ('active', 'inactive'))
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS login_history (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ip_address VARCHAR(255),
+                status VARCHAR(50)
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS settings (
+                "key" VARCHAR(255) PRIMARY KEY,
+                "value" TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS customers (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                phone VARCHAR(255) UNIQUE NOT NULL,
+                email VARCHAR(255),
+                address TEXT,
+                reward_points INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS suppliers (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                phone VARCHAR(255) NOT NULL,
+                email VARCHAR(255),
+                gst_number VARCHAR(255),
+                balance DOUBLE PRECISION DEFAULT 0.0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS products (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                product_id VARCHAR(255) UNIQUE NOT NULL,
+                barcode VARCHAR(255) UNIQUE,
+                qrcode VARCHAR(255) UNIQUE,
+                category VARCHAR(255),
+                brand VARCHAR(255),
+                supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
+                purchase_price DOUBLE PRECISION NOT NULL,
+                mrp DOUBLE PRECISION NOT NULL,
+                selling_price DOUBLE PRECISION NOT NULL,
+                gst DOUBLE PRECISION DEFAULT 0.0,
+                discount DOUBLE PRECISION DEFAULT 0.0,
+                quantity DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                unit VARCHAR(50) DEFAULT 'pcs',
+                weight DOUBLE PRECISION,
+                expiry_date VARCHAR(50),
+                mfg_date VARCHAR(50),
+                description TEXT,
+                image_path VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                stock_status VARCHAR(50)
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS offers (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                type VARCHAR(50) CHECK(type IN ('Percentage', 'Flat', 'BOGO', 'Combo', 'Membership', 'Student', 'Senior Citizen')) NOT NULL,
+                value DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                min_purchase DOUBLE PRECISION DEFAULT 0.0,
+                code VARCHAR(255) UNIQUE,
+                start_date VARCHAR(50),
+                end_date VARCHAR(50),
+                active INTEGER DEFAULT 1 CHECK(active IN (0, 1))
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS sales (
+                id SERIAL PRIMARY KEY,
+                invoice_number VARCHAR(255) UNIQUE NOT NULL,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+                cashier_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                subtotal DOUBLE PRECISION NOT NULL,
+                discount DOUBLE PRECISION DEFAULT 0.0,
+                gst DOUBLE PRECISION DEFAULT 0.0,
+                grand_total DOUBLE PRECISION NOT NULL,
+                payment_mode VARCHAR(50) NOT NULL,
+                cash_received DOUBLE PRECISION DEFAULT 0.0,
+                balance DOUBLE PRECISION DEFAULT 0.0,
+                status VARCHAR(50) DEFAULT 'Active',
+                CONSTRAINT chk_payment_mode CHECK (payment_mode IN ('Cash', 'UPI', 'Credit Card', 'Debit Card', 'Wallet'))
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS sales_items (
+                id SERIAL PRIMARY KEY,
+                sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE,
+                product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+                quantity DOUBLE PRECISION NOT NULL,
+                mrp DOUBLE PRECISION NOT NULL,
+                selling_price DOUBLE PRECISION NOT NULL,
+                discount DOUBLE PRECISION DEFAULT 0.0,
+                gst DOUBLE PRECISION DEFAULT 0.0,
+                subtotal DOUBLE PRECISION NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS inventory_history (
+                id SERIAL PRIMARY KEY,
+                product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+                action VARCHAR(50) NOT NULL,
+                quantity DOUBLE PRECISION NOT NULL,
+                source_dest VARCHAR(255),
+                notes TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT chk_inv_action CHECK (action IN ('Stock In', 'Sale', 'Damaged', 'Returned', 'Adjustment'))
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS backups (
+                id SERIAL PRIMARY KEY,
+                filepath VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS deletion_logs (
+                id SERIAL PRIMARY KEY,
+                table_name VARCHAR(255) NOT NULL,
+                record_id VARCHAR(255) NOT NULL,
+                deleted_by VARCHAR(255) NOT NULL,
+                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                record_details TEXT
+            );
+            """
+        ]
     else:
-        # MySQL/PostgreSQL schema queries
+        # MySQL schema queries
         schema_queries = [
             """
             CREATE TABLE IF NOT EXISTS users (
