@@ -12,4 +12,5 @@ firebase-admin
 psycopg2-binary
 pymysql
 bcrypt
+gunicorn
 

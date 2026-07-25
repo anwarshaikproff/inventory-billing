@@ -56,9 +56,12 @@ def create_app():
             
     return app
 
+# Expose global app instance for WSGI cloud runners (Gunicorn / Render / Vercel)
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
-    port = int(os.environ.get('PORT', 5000))
-    print(f"Starting SKML Mobiles POS & Inventory Server on http://127.0.0.1:{port}")
-    # Bind to localhost port for standard local server dev access
-    app.run(debug=True, host='127.0.0.1', port=port)
+    port = int(os.environ.get('PORT', 5001))
+    print(f"Starting SKML Mobiles POS & Inventory Server on port {port}")
+    # Bind to 0.0.0.0 so containerized cloud runners (Render/Docker) can accept incoming external HTTP traffic
+    app.run(debug=True, host='0.0.0.0', port=port)
+
