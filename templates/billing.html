@@ -310,7 +310,7 @@
                                                 <span class="badge-payment badge-online"><i class="fa-solid fa-qrcode me-1"></i> Online</span>
                                             {% endif %}
                                         </td>
-                                        <td class="text-muted small">{{ b.bill_date.strftime('%Y-%m-%d %H:%M') if b.bill_date.strftime is defined else b.bill_date[:16] }}</td>
+                                        <td class="text-muted small">{{ b.bill_date | string | truncate(16, True, '') }}</td>
                                         <td class="text-end">
                                             <button class="btn btn-sm btn-outline-danger border-0 py-1" onclick="deleteBill({{ b.id }})" title="Delete Bill">
                                                 <i class="fa-solid fa-trash-can"></i>
